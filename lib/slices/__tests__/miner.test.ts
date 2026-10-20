@@ -36,6 +36,14 @@ describe("slice miner", () => {
     expect(result.proposals.map(p => p.name)).toEqual(["Deformable", "Drawer", "Cups"]);
   });
 
+  it("serves cached proposals without calling the model when the LLM budget is spent", async () => {
+    process.env.OPENAI_API_KEY = "test-key-not-real";
+    const pairs = getPairsFromData("pi0_fast_droid", "paligemma_fast_specialist_droid");
+    const result = await mineSlices(pairs.slice(0, 10), { base: "a", cand: "b" }, { allowLlm: false });
+    expect(result.source).toBe("fallback");
+    expect(captured.length).toBe(0);
+  });
+
   it("falls back to cached proposals without an API key", async () => {
     const pairs = getPairsFromData("pi0_fast_droid", "paligemma_fast_specialist_droid");
     const result = await mineSlices(pairs.slice(0, 10), { base: "a", cand: "b" });

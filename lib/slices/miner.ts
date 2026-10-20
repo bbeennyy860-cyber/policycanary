@@ -38,8 +38,9 @@ function fallback(): { source: "fallback"; proposals: SliceProposal[] } {
 export async function mineSlices(
   discoveryPairs: PairObs[],
   ctx: { base: string; cand: string },
+  opts: { allowLlm?: boolean } = {},
 ): Promise<{ source: "llm" | "fallback"; model?: string; proposals: SliceProposal[] }> {
-  if (!process.env.OPENAI_API_KEY?.trim() || discoveryPairs.length === 0) return fallback();
+  if (opts.allowLlm === false || !process.env.OPENAI_API_KEY?.trim() || discoveryPairs.length === 0) return fallback();
   const allowedRows = new Set(discoveryPairs);
   const groups = new Map<string, { n: number; sum: number }>();
   const notes = discoveryPairs.filter((pair) => pair.notes.trim()).sort((a, b) => a.d - b.d).slice(0, 120);

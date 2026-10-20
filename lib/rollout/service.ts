@@ -194,11 +194,20 @@ export async function overrideRollout(id: number, input: OverrideInput) {
   });
 }
 
+// The public demo holds a paid API key; past this many LLM slice runs per hour (all rollouts) the
+// miner serves the labelled cached proposals instead. Statistics are unaffected either way.
+const LLM_RUNS_PER_HOUR = 30;
+
 export async function runSlices(id: number): Promise<SliceRun> {
-  const row = await transaction(db => readRollout(db, id));
+  const { row, recentLlmRuns } = await transaction(async db => ({
+    row: await readRollout(db, id),
+    recentLlmRuns: Number((await db.query<{ n: string }>(
+      "SELECT count(*) AS n FROM slice_runs WHERE source = 'llm' AND created_at > now() - interval '1 hour'")).rows[0]?.n ?? 0),
+  }));
   const splitIndex = Math.floor(row.pairs.length / 2);
   // The LLM sees ONLY the discovery half.
-  const mined = await mineSlices(row.pairs.slice(0, splitIndex), { base: row.baseline, cand: row.candidate });
+  const mined = await mineSlices(row.pairs.slice(0, splitIndex), { base: row.baseline, cand: row.candidate },
+    { allowLlm: recentLlmRuns < LLM_RUNS_PER_HOUR });
   const results = testSlices(row.pairs, mined.proposals, splitIndex, Number(row.margin));
   return transaction(async db => {
     const inserted = await db.query<SliceRunRow>(`INSERT INTO slice_runs (rollout_id, source, model, split_index, proposals, results)
