@@ -5,11 +5,12 @@ TypeScript strict, no `any` on public surfaces. Commit only your own files with 
 Never print or commit secrets. Run your acceptance checks and paste their real output in your final message. If a check fails, fix it before finishing.
 
 Goal: create the skeleton every other worker builds on.
-1. In the current directory (already contains SPEC.md and data/): `npx create-next-app@latest . --ts --tailwind --eslint --app --src-dir=false --import-alias "@/*" --use-npm --yes` (keep SPEC.md, data/).
-2. Install: drizzle-orm @neondatabase/serverless zod ai @ai-sdk/openai recharts ; dev: drizzle-kit vitest tsx @types/node.
-3. Create `lib/contract.ts` exactly as in SPEC.md "Shared types". Create `db/schema.ts` (Drizzle) exactly per SPEC "Postgres schema", `db/client.ts` (neon http driver from DATABASE_URL), `drizzle.config.ts`.
+0. Read ADDENDUM.md too (Netlify + Netlify Database override Vercel/Neon).
+1. create-next-app refuses a non-empty folder: run `npx create-next-app@15 _app --ts --tailwind --eslint --app --no-src-dir --import-alias "@/*" --use-npm --yes --skip-install`, then move everything from `_app/` into the repo root (merge .gitignore, keep SPEC.md, ADDENDUM.md, data/, briefs/, ref/, logs/, .netlify/), delete `_app`, then `npm install`.
+2. Install: @netlify/database drizzle-orm@beta zod ai @ai-sdk/openai recharts ; dev: drizzle-kit@beta vitest tsx @types/node @netlify/plugin-nextjs.
+3. Create `lib/contract.ts` exactly as in SPEC.md "Shared types". Create `db/schema.ts` (Drizzle) exactly per SPEC "Postgres schema", `db/index.ts` (drizzle-orm/netlify-db adapter), `drizzle.config.ts` with out: netlify/database/migrations, `netlify.toml` (build command npm run build, publish .next).
 4. Create empty stubs that export the right signatures (throw "not implemented") for: lib/stats/{wilson,cs,decide,slices}.ts, lib/rollout/machine.ts, lib/slices/miner.ts.
-5. package.json scripts: dev, build, test (vitest run), db:push (drizzle-kit push), seed (tsx scripts/seed.ts).
+5. package.json scripts: dev, build, test (vitest run), db:generate (drizzle-kit generate), gen-seed (tsx scripts/gen-seed.ts).
 6. `git init`, .gitignore includes .env*, commit "scaffold".
 Acceptance: `npm run build` succeeds; `npx tsc --noEmit` clean.
 Owns: everything created in this step. After it finishes, ownership passes to W1-W5 as listed in their briefs.

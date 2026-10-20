@@ -1,5 +1,5 @@
 # W1 - Data, seed, deploy
-Read SPEC.md in the repo root first; it is the contract. Do not edit files you do not own (listed below).
+Read SPEC.md then ADDENDUM.md in the repo root first; together they are the contract (ADDENDUM wins on conflict, incl. the GOLD features you own). Do not edit files you do not own (listed below).
 Do not touch package.json or lockfiles (W0 installed everything). If you truly need a dependency, stop and say so in your final message.
 TypeScript strict, no `any` on public surfaces. Commit only your own files with `git add <your paths>` and a clear message; never `git add -A`.
 Never print or commit secrets. Run your acceptance checks and paste their real output in your final message. If a check fails, fix it before finishing.
