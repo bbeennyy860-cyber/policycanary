@@ -8,8 +8,10 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "db:generate": "drizzle-kit generate",
-    "gen-seed": "tsx scripts/gen-seed.ts"
+    "db:generate": "drizzle-kit generate --name schema",
+    "gen-seed": "tsx scripts/gen-seed.ts",
+    "typecheck": "tsc --noEmit",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.98",
