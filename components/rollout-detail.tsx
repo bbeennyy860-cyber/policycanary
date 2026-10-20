@@ -140,7 +140,7 @@ export function RolloutDetail({ id }: { id: string }) {
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <Card title="Confidence sequence"
-          subtitle={<>Mean Δ progress (candidate − baseline) with its anytime-valid 95% band, stage <span className="font-mono">{csStage}</span>. ROLLBACK when U &lt; −margin; PROMOTE when L &gt; {str(detail.mode) === "noninferiority" ? "−margin" : "0"}.</>}>
+          subtitle={<>Mean Δ progress (candidate − baseline) with its anytime-valid 95% band, stage <span className="font-mono">{csStage}</span>{csStage !== str(detail.stage, csStage) ? " (just completed)" : ""}. ROLLBACK when U &lt; −margin; PROMOTE when L &gt; {str(detail.mode) === "noninferiority" ? "−margin" : "0"}.</>}>
           <BandChart points={points} margin={margin} decisionN={crossing ? num(crossing.n) : null} verdict={crossing ? str(crossing.verdict) : null} />
         </Card>
         <div className="space-y-6">
