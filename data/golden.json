@@ -1,0 +1,68 @@
+{
+ "pi0_droid->pi0_fast_droid": {
+  "n": 710,
+  "mean": 0.1159,
+  "decision": "PROMOTE",
+  "at": 136,
+  "cs_at_decision": [
+   0.006,
+   0.25
+  ],
+  "cs_final": [
+   0.078,
+   0.162
+  ],
+  "cs_at_10": [
+   -0.998,
+   0.998
+  ],
+  "cs_at_50": [
+   -0.208,
+   0.426
+  ]
+ },
+ "paligemma_fast_droid->paligemma_binning_droid": {
+  "n": 677,
+  "mean": -0.3575,
+  "decision": "ROLLBACK",
+  "at": 55,
+  "cs_at_decision": [
+   -0.628,
+   -0.028
+  ],
+  "cs_final": [
+   -0.398,
+   -0.31
+  ],
+  "cs_at_10": [
+   -0.998,
+   0.998
+  ],
+  "cs_at_50": [
+   -0.634,
+   0.018
+  ]
+ },
+ "pi0_fast_droid->paligemma_fast_specialist_droid": {
+  "n": 691,
+  "mean": -0.0316,
+  "decision": "HOLD",
+  "at": 691,
+  "cs_at_decision": [
+   -0.072,
+   0.01
+  ],
+  "cs_final": [
+   -0.072,
+   0.01
+  ],
+  "cs_at_10": [
+   -0.998,
+   0.998
+  ],
+  "cs_at_50": [
+   -0.354,
+   0.284
+  ]
+ }
+}
