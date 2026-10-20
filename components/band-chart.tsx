@@ -1,0 +1,10 @@
+"use client";
+import { Area, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import type { CsPoint } from "@/lib/contract";
+import { Empty } from "./ui";
+
+export function BandChart({ points, margin }: { points: CsPoint[]; margin: number }) {
+  if (!points.length) return <Empty>Start replay to see the confidence band tighten as paired evidence arrives.</Empty>;
+  const data = points.map(p => ({ ...p, band: [p.lcb, p.ucb] }));
+  return <div className="chart" role="img" aria-label="Anytime-valid confidence sequence for candidate minus baseline progress. Shaded area shows lower and upper bounds."><ResponsiveContainer width="100%" height={320}><ComposedChart data={data} margin={{ top: 18, right: 30, left: 2, bottom: 16 }}><CartesianGrid stroke="#263447" strokeDasharray="3 5" vertical={false} /><XAxis dataKey="n" type="number" domain={[0, "dataMax"]} stroke="#8b9bb1" tickLine={false} axisLine={false} label={{ value: "Paired sessions in this stage", position: "insideBottom", offset: -12, fill: "#8b9bb1", fontSize: 11 }} /><YAxis domain={[-1, 1]} stroke="#8b9bb1" tickLine={false} axisLine={false} tickFormatter={(v: number) => v.toFixed(1)} width={48} /><Tooltip contentStyle={{ background: "#141f2e", border: "1px solid #344458", borderRadius: 8, color: "#e7edf5" }} labelFormatter={v => `Pair ${v}`} /><ReferenceLine y={0} stroke="#b7c3d2" /><ReferenceLine y={margin} stroke="#6b7a90" strokeDasharray="5 5" /><ReferenceLine y={-margin} stroke="#6b7a90" strokeDasharray="5 5" /><Area dataKey="band" name="Confidence bounds" type="linear" stroke="none" fill="#35d3b0" fillOpacity={0.16} isAnimationActive={false} /><Line dataKey="lcb" name="Lower bound" stroke="#35d3b0" strokeOpacity={0.5} strokeWidth={1} dot={false} isAnimationActive={false} /><Line dataKey="ucb" name="Upper bound" stroke="#35d3b0" strokeOpacity={0.5} strokeWidth={1} dot={false} isAnimationActive={false} /><Line dataKey="mean" name="Mean difference" stroke="#5de3c4" strokeWidth={2.5} dot={false} isAnimationActive={false} /></ComposedChart></ResponsiveContainer></div>;
+}

@@ -1,0 +1,3 @@
+Reading additional input from stdin...
+2026-10-20T20:46:22.867404Z ERROR codex_models_manager::manager: failed to refresh available models: request timed out
+2026-10-20T20:47:28.159283Z ERROR codex_core::tools::router: error=apply_patch verification failed: invalid patch: multiple operations target C:\Users\Nxiss\AppData\Local\hermes\profiles\helios-local\workspaces\policycanary\app\page.tsx

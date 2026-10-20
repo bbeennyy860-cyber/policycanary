@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { Shell } from "@/components/shell";
 
 export const metadata: Metadata = {
   title: "PolicyCanary",
@@ -13,7 +14,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="antialiased">{children}</body>
+      <body><Shell>{children}</Shell></body>
     </html>
   );
 }

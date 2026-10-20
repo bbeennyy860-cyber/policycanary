@@ -98,3 +98,20 @@ export const auditLog = pgTable("audit_log", {
 });
 
 // W3 tables
+// Audit hashes are stored alongside their canonical payload inside audit_log.payload.
+export const idempotencyKeys = pgTable("idempotency_keys", {
+  key: text("key").primaryKey(),
+  requestHash: text("request_hash").notNull(),
+  status: integer("status").notNull(),
+  response: jsonb("response").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+// Snapshot the initial historical stream; live pairs append even when backdated.
+export const rolloutRuntime = pgTable("rollout_runtime", {
+  rolloutId: integer("rollout_id").primaryKey().references(() => rollouts.id),
+  stage: text("stage").notNull().default("EVAL"),
+  stageStart: integer("stage_start").notNull().default(0),
+  revision: integer("revision").notNull().default(0),
+  pairs: jsonb("pairs").notNull().default([]),
+});

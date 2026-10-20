@@ -1,0 +1,42 @@
+{
+  "source": "fallback",
+  "provenance": {
+    "method": "hand-labelled; OPENAI_API_KEY unavailable in the worker process",
+    "baseline": "pi0_fast_droid",
+    "candidate": "paligemma_fast_specialist_droid",
+    "discoveryPairs": 345,
+    "selection": "Six task categories from the worst discovery notes; no confirmation results used to select or tune proposals. Deformable uses the fixed SPEC substring fixture, which also matches storage via rag."
+  },
+  "proposals": [
+    {
+      "name": "Deformable objects",
+      "pattern": "fold|towel|cloth|napkin|shirt|rag|fabric",
+      "rationale": "Hand-labelled discovery theme: moving toward cloth without picking or folding it, and difficulty placing towels. Fixed SPEC substring pattern; rag also matches storage, so this is a broad proxy rather than a clean material taxonomy."
+    },
+    {
+      "name": "Cups, mugs and bowls",
+      "pattern": "cup|mug|bowl",
+      "rationale": "Hand-labelled discovery theme: unsuccessful grasping, touching objects without moving them, and incomplete placement into mugs or bowls."
+    },
+    {
+      "name": "Drawers and articulated access",
+      "pattern": "drawer|open|close|cabinet",
+      "rationale": "Hand-labelled discovery theme: failure to attempt drawer opening and poorly aligned approaches to the cabinet."
+    },
+    {
+      "name": "Utensils and stirring",
+      "pattern": "stir|spoon|pot|pan",
+      "rationale": "Hand-labelled discovery theme: hesitant approaches toward a pot without grasping the spoon, or retracting and freezing after an initial approach."
+    },
+    {
+      "name": "Small tools and stationery",
+      "pattern": "stapler|binder clip|pen|screwdriver|eraser",
+      "rationale": "Hand-labelled discovery theme: reaching toward the wrong stationery object, searching near a stapler without grasping, and stalling during pen or screwdriver placement."
+    },
+    {
+      "name": "Boxes, baskets and trays",
+      "pattern": "box|basket|tray",
+      "rationale": "Hand-labelled discovery theme: frozen attempts at box tasks, moving an incorrect object into a basket, and distractor-sensitive placement of stuffed animals."
+    }
+  ]
+}
