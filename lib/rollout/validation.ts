@@ -11,7 +11,7 @@ export const createSchema = z.object({
   maxTrials: z.number().int().positive().max(2147483647).default(DEFAULT_GATE.maxTrials),
   mode: z.enum(["superiority", "noninferiority"]).default(DEFAULT_GATE.mode),
 }).strict().refine(value => value.baseline !== value.candidate, { message: "Baseline and candidate must differ" });
-export const replaySchema = z.object({ batch: z.number().int().min(1).max(2000).default(25) }).strict();
+export const replaySchema = z.object({ batch: z.number().int().min(1).max(2000).default(25), expectedCursor: z.number().int().min(0).optional() }).strict();
 export const overrideSchema = z.object({
   toState: stateSchema, actor: name, reason: z.string().trim().min(10).max(10000),
   maxTrials: z.number().int().positive().max(2147483647).optional(),
