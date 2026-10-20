@@ -12,14 +12,34 @@ vi.mock("ai", () => ({
     ] } };
   }),
 }));
-vi.mock("@ai-sdk/openai", () => ({ openai: (model: string) => ({ model }) }));
+const providers: { apiKey: string; baseURL: string }[] = [];
+vi.mock("@ai-sdk/openai", () => ({
+  openai: (model: string) => ({ model }),
+  createOpenAI: (settings: { apiKey: string; baseURL: string }) => {
+    providers.push(settings);
+    return (model: string) => ({ model, baseURL: settings.baseURL });
+  },
+}));
 
 import { getPairsFromData } from "../../data";
 import { mineSlices } from "../miner";
 
-afterEach(() => { delete process.env.OPENAI_API_KEY; captured.length = 0; });
+afterEach(() => {
+  delete process.env.OPENAI_API_KEY; delete process.env.NETLIFY_AI_GATEWAY_KEY; delete process.env.NETLIFY_AI_GATEWAY_URL;
+  captured.length = 0; providers.length = 0;
+});
 
 describe("slice miner", () => {
+  it("prefers Netlify AI Gateway credentials over a project OPENAI_API_KEY", async () => {
+    process.env.OPENAI_API_KEY = "stale-project-key";
+    process.env.NETLIFY_AI_GATEWAY_KEY = "gateway-token-not-real";
+    process.env.NETLIFY_AI_GATEWAY_URL = "https://example.netlify.app/.netlify/ai";
+    const pairs = getPairsFromData("pi0_fast_droid", "paligemma_fast_specialist_droid");
+    const result = await mineSlices(pairs.slice(0, 40), { base: "a", cand: "b" });
+    expect(result.source).toBe("llm");
+    expect(providers).toEqual([{ apiKey: "gateway-token-not-real", baseURL: "https://example.netlify.app/.netlify/ai" }]);
+  });
+
   it("never sends confirmation-half rows to the LLM prompt", async () => {
     process.env.OPENAI_API_KEY = "test-key-not-real";
     const pairs = getPairsFromData("pi0_fast_droid", "paligemma_fast_specialist_droid").map(p => ({ ...p }));
