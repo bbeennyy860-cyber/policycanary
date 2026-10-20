@@ -34,6 +34,16 @@ pi0_fast_droid → paligemma_fast_specialist_droid HOLD      at pair 691   CS [-
 - **Peeking simulation** on pi0 → pi0_fast (400 replications, peek every 10 pairs): naive false-promotion rate **0.3375**; confidence-sequence rate **0.0075**.
 - **Time to decision** on the same rollout: 26.4 robot-hours (19.5% of the 135.5 h for all 710 pairs).
 
+### Calibration across all policy pairs
+
+The three golden rollouts are examples; `npm run calibrate` checks the two headline claims on **every** pair of the 21 policies with at least 30 paired sessions (29 pairs, 15,560 observations) and writes [`docs/CALIBRATION.md`](docs/CALIBRATION.md). Seeds are fixed, so a re-run reproduces the file byte for byte.
+
+- **No real difference, does it still declare a winner?** Each session's difference has its sign flipped at random (swapping which arm is baseline), so the true mean is 0. Naive peeking every 10 pairs declares a false winner **29.2%** of the time (95% CI 28.4–30.0%). The confidence sequence does so **0.94%** of the time (0.78–1.13%), against a 5% budget; no single pair exceeds 5%.
+- **Is it faster than a fixed-sample test?** It depends on the effect, and the honest answer is a trade-off. Where the gate decided (13 of 29 pairs) it took a median of 61 pairs. A fixed test sized in advance for an effect of 0.05 needs a median 453 pairs; sized for 0.15 it needs 51 but finds a difference on only 12 of 28 pairs. The gate needs no effect size chosen in advance and stops early in either direction. It is conservative, so on small effects it holds where a large, well-sized fixed test would eventually detect them.
+- **Not tested:** the guarantee assumes the mean difference does not drift over time (for example as evaluators or sites change). Sign flipping cannot check that.
+
+The calibration uses its own seeds and the full 999-point grid, so its figure for pi0 → pi0_fast (34.8% naive, 1.5% CS) differs slightly from the in-app simulation above.
+
 Refusals from the API:
 
 ```
@@ -69,6 +79,7 @@ Checks:
 npx tsc --noEmit
 npm test            # Vitest: stats golden values, state machine + replay, miner, site normalisation
 npm run build
+npm run calibrate   # ~20 s: rewrites docs/CALIBRATION.md; no diff means the numbers reproduce
 ```
 
 ## How this was built: AI-native, timed, and what went wrong
@@ -92,6 +103,7 @@ This was the AlgoSoup take-home: build and deploy a product in 60 minutes using 
   - the per-site panel split one lab into several rows because the raw labels were inconsistent;
   - the savings card compared against an oracle test, which made the headline rollout read "0 h saved";
 - an independent code review pass;
+- a calibration script over all 29 eligible policy pairs (`docs/CALIBRATION.md`), so the statistical claims are checked beyond the three demo rollouts;
 - this README;
 - pushing to GitHub and the first Netlify deploy.
 

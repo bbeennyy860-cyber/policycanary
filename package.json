@@ -10,6 +10,7 @@
     "test": "vitest run",
     "db:generate": "drizzle-kit generate --name schema",
     "gen-seed": "tsx scripts/gen-seed.ts",
+    "calibrate": "tsx scripts/calibrate.ts",
     "typecheck": "tsc --noEmit",
     "test:watch": "vitest"
   },

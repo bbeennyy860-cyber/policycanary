@@ -2,6 +2,15 @@ import type { GateConfig, Verdict } from "../contract";
 import { runGate } from "./decide";
 import { moments, normalQuantile } from "./math";
 
+/**
+ * Pairs a fixed-sample two-sided z-test needs for `power` at effect `delta`:
+ * ((z_{1-alpha/2} + z_power) * sigma / delta)^2. Infinity when delta is not positive.
+ */
+export function fixedHorizonPairs(sigma: number, delta: number, alpha: number, power = 0.8): number {
+  if (!(delta > 0)) return Infinity;
+  return Math.max(1, Math.ceil(((normalQuantile(1 - alpha / 2) + normalQuantile(power)) * sigma / delta) ** 2));
+}
+
 export interface SavingsResult {
   verdict: Verdict; decidedAt: number; totalPairs: number;
   robotHoursUsed: number; robotHoursAll: number; pctUsed: number;
@@ -25,10 +34,9 @@ export function savings(ds: number[], durationsS: number[], cfg: GateConfig): Sa
   const { decision, decidedAt } = runGate(ds, cfg);
   const m = moments(ds);
   const sigma = Math.sqrt(m.variance), delta = Math.abs(m.mean);
-  const z = normalQuantile(1 - cfg.alpha / 2) + normalQuantile(0.8);
-  const raw = delta > 0 ? Math.ceil(((z * sigma) / delta) ** 2) : Infinity;
+  const raw = fixedHorizonPairs(sigma, delta, cfg.alpha);
   const capped = !(raw <= total);
-  const fixed = capped ? total : Math.max(1, raw);
+  const fixed = capped ? total : raw;
   const hoursTo = (k: number) => durationsS.slice(0, k).reduce((s, v) => s + (Number.isFinite(v) ? v : 0), 0) / 3600;
   const used = hoursTo(decidedAt), all = hoursTo(total);
   return { verdict: decision.verdict, decidedAt, totalPairs: total,

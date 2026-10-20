@@ -6,7 +6,7 @@ import { bradleyTerry } from "../bradleyTerry";
 import { bettingCs } from "../cs";
 import { decide, runGate } from "../decide";
 import { simulatePeeking } from "../peeking";
-import { savings } from "../savings";
+import { fixedHorizonPairs, savings } from "../savings";
 import { siteHeterogeneity } from "../sites";
 import { testSlices } from "../slices";
 import { wilson } from "../wilson";
@@ -145,6 +145,9 @@ describe("gold features", () => {
     const h = savings(hold.map(p => p.d), pairDurations(hold, "pi0_fast_droid", "paligemma_fast_specialist_droid"), DEFAULT_GATE);
     expect(h.fixedHorizonCapped).toBe(true);
     expect(h.pctUsed).toBe(100);
+    // ((z_.975 + z_.8) * 0.4 / 0.1)^2 = 125.58 -> 126; no positive effect -> no finite size.
+    expect(fixedHorizonPairs(0.4, 0.1, 0.05)).toBe(126);
+    expect(fixedHorizonPairs(0.4, 0, 0.05)).toBe(Infinity);
   });
 
   it("G3 Bradley-Terry leaderboard", () => {
