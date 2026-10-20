@@ -50,7 +50,7 @@ describe("state machine", () => {
 describe("replay", () => {
   const pairs = getPairsFromData("pi0_droid", "pi0_fast_droid");
   it("PROMOTE at pair 136 moves EVALUATING -> CANARY and resets the stage", () => {
-    let snap = { state: "DRAFT" as const, stage: "EVAL" as const, stageStart: 0, cursor: 0, pairs, config: DEFAULT_GATE };
+    const snap = { state: "DRAFT" as const, stage: "EVAL" as const, stageStart: 0, cursor: 0, pairs, config: DEFAULT_GATE };
     let state: string = snap.state, cursor = 0, stage: string = "EVAL", stageStart = 0;
     const all = [];
     for (let i = 0; i < 20 && state !== "CANARY"; i++) {

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { DEFAULT_GATE } from "../contract";
+import { canonicalSite } from "../data";
 
 const name = z.string().trim().min(1).max(200);
 export const stateSchema = z.enum(["DRAFT", "EVALUATING", "CANARY", "EXPANDING", "PROMOTED", "ROLLED_BACK", "HOLD", "ABANDONED"]);
@@ -21,7 +22,7 @@ export const resumeSchema = z.object({
 }).strict();
 export const guardrailSchema = z.object({ sliceName: name, approvedBy: name }).strict();
 export const trialSchema = z.object({
-  sessionId: z.uuid(), occurredAt: z.iso.datetime({ offset: true }), site: name,
+  sessionId: z.uuid(), occurredAt: z.iso.datetime({ offset: true }), site: name.transform(canonicalSite),
   instruction: z.string().trim().min(1).max(20000), notes: z.string().max(100000).default(""),
   results: z.array(z.object({
     policy: name, success: z.union([z.literal(0), z.literal(1)]), progress: z.number().min(0).max(1),

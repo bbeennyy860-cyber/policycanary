@@ -3,23 +3,25 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError, fixed, integer, message, num, pick, pct, pval, record, rows, signed, str, time, type JsonRecord } from "./api";
 import { Card, Empty, ErrorNotice } from "./ui";
 
-/* ---------- G2 robot-hours saved ---------- */
+/* ---------- G2 time to decision ---------- */
 export function SavingsCard({ savings }: { savings: JsonRecord }) {
   if (!Object.keys(savings).length || savings.decidedAt === undefined) {
-    return <Card title="Robot-hours saved"><p className="text-[13px] text-muted">Available once the gate reaches a decision.</p></Card>;
+    return <Card title="Time to decision"><p className="text-[13px] text-muted">Available once the gate reaches a decision.</p></Card>;
   }
   const capped = savings.fixedHorizonCapped === true;
+  const decided = str(savings.verdict) !== "HOLD";
   return (
-    <Card title="Robot-hours saved" subtitle="Sequential decision vs a fixed-horizon test sized for 80% power">
-      <div className="num text-[30px] font-semibold leading-none tracking-tight text-accent">{capped ? "≥ " : ""}{fixed(savings.robotHoursSaved, 1)} h</div>
-      <div className="mt-1 text-[12px] text-muted">{capped ? "≥ " : ""}{pct(num(savings.pctSaved) > 1 ? num(savings.pctSaved) / 100 : savings.pctSaved, 0)} of robot time</div>
+    <Card title="Time to decision" subtitle="Robot time the gate needed, against running every available pair">
+      <div className="num text-[30px] font-semibold leading-none tracking-tight text-accent">{fixed(savings.robotHoursUsed, 1)} h</div>
+      <div className="mt-1 text-[12px] text-muted">
+        {decided ? `${pct(savings.pctUsed, 0)} of the ${fixed(savings.robotHoursAll, 1)} h for all ${integer(savings.totalPairs)} pairs` : "No decision: the data ran out first"}
+      </div>
       <dl className="num mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-[12.5px]">
-        <dt className="text-dim">Decided at pair</dt><dd className="text-right">{integer(savings.decidedAt)}</dd>
-        <dt className="text-dim">Fixed-horizon pairs</dt><dd className="text-right">{capped ? "≥ " : ""}{integer(savings.fixedHorizonPairs)}</dd>
-        <dt className="text-dim">Pairs saved</dt><dd className="text-right">{capped ? "≥ " : ""}{integer(savings.pairsSaved)}</dd>
-        <dt className="text-dim">Robot-hours used</dt><dd className="text-right">{fixed(savings.robotHoursUsed, 1)}</dd>
+        <dt className="text-dim">Decided at pair</dt><dd className="text-right">{integer(savings.decidedAt)} of {integer(savings.totalPairs)}</dd>
+        <dt className="text-dim">Oracle fixed-horizon pairs</dt><dd className="text-right">{capped ? "≥ " : ""}{integer(savings.fixedHorizonPairs)}</dd>
         <dt className="text-dim">σ / δ</dt><dd className="text-right">{fixed(savings.sigma, 3)} / {fixed(savings.delta, 3)}</dd>
       </dl>
+      <p className="mt-3 text-[11.5px] leading-relaxed text-dim">The oracle test is sized with the true effect δ, which is unknown before the trials run, and it may be read only once. The gate can be checked after every pair without inflating false promotions.</p>
     </Card>
   );
 }

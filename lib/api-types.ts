@@ -51,11 +51,11 @@ export interface SliceRun {
   proposals: SliceProposal[]; results: TestedSliceResult[]; createdAt: string;
 }
 
-/** G2 robot-hours saved ledger. */
+/** G2 time-to-decision ledger (fixed-horizon fields are an oracle reference). */
 export interface SavingsResult {
   verdict: Verdict; decidedAt: number; totalPairs: number;
-  fixedHorizonPairs: number; fixedHorizonCapped: boolean; // capped => label "≥"
-  pairsSaved: number; robotHoursUsed: number; robotHoursFixed: number; robotHoursSaved: number; pctSaved: number;
+  robotHoursUsed: number; robotHoursAll: number; pctUsed: number;
+  fixedHorizonPairs: number; fixedHorizonCapped: boolean; robotHoursFixed: number; // capped => label "≥"
   sigma: number; delta: number;
 }
 

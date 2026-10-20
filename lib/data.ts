@@ -4,11 +4,27 @@ import type { PairObs } from "./contract";
 export interface Arm { name: string; success: number; progress: number; duration: number | null }
 export interface SessionRecord { id: string; t: string; site: string; instr: string; pref?: string; notes: string; policies: Record<string, Arm> }
 
+// RoboArena site labels are free text: 15 spellings of Berkeley and 2 typos of Washington.
+// An explicit alias table (not fuzzy matching) keeps the mapping auditable and cannot merge distinct labs.
+const SITE_ALIASES: Record<string, string> = Object.fromEntries([
+  ...["berkeley", "berkeleu", "berkeleuy", "berkley", "berkele", "berkeleyy", "betkeley", "berkelehy", "berkeleyu",
+    "berkely", "berkeeley", "berkekey", "berkreley"].map(k => [k, "Berkeley"]),
+  ["unversity of washington", "University of Washington"],
+  ["university of washginton", "University of Washington"],
+]);
+
+/** Canonical display name for a raw site label; unknown labels pass through trimmed. */
+export function canonicalSite(raw: string): string {
+  const label = raw.trim().replace(/\s+/g, " ");
+  return SITE_ALIASES[label.toLowerCase()] ?? label;
+}
+
 let cache: SessionRecord[] | undefined;
-/** Loaded once per server instance; ordered by timestamp then id. */
+/** Loaded once per server instance; ordered by timestamp then id. Site labels are canonicalised. */
 export function sessions(): SessionRecord[] {
   if (!cache) {
-    cache = (raw as unknown as SessionRecord[]).slice().sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    cache = (raw as unknown as SessionRecord[]).map(s => ({ ...s, site: canonicalSite(s.site) }))
+      .sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   }
   return cache;
 }

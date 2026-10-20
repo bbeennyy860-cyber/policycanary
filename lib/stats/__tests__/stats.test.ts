@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import golden from "../../../data/golden.json";
 import { DEFAULT_GATE } from "../../contract";
-import { getPairsFromData, pairDurations, sessions } from "../../data";
+import { canonicalSite, getPairsFromData, pairDurations, sessions } from "../../data";
 import { bradleyTerry } from "../bradleyTerry";
 import { bettingCs } from "../cs";
 import { decide, runGate } from "../decide";
@@ -132,16 +132,19 @@ describe("gold features", () => {
     expect(b.csFalseDecisions).toBe(a.csFalseDecisions);
   });
 
-  it("G2 savings: rollback saves robot time", () => {
+  it("G2 time to decision: rollback stops early", () => {
     const pairs = getPairsFromData("paligemma_fast_droid", "paligemma_binning_droid");
     const s = savings(pairs.map(p => p.d), pairDurations(pairs, "paligemma_fast_droid", "paligemma_binning_droid"), DEFAULT_GATE);
     expect(s.verdict).toBe("ROLLBACK");
     expect(s.decidedAt).toBe(55);
     expect(s.robotHoursUsed).toBeGreaterThan(0);
+    expect(s.robotHoursUsed).toBeLessThan(s.robotHoursAll);
+    expect(s.pctUsed).toBeLessThan(15);
     expect(s.fixedHorizonPairs).toBeGreaterThan(0);
     const hold = getPairsFromData("pi0_fast_droid", "paligemma_fast_specialist_droid");
     const h = savings(hold.map(p => p.d), pairDurations(hold, "pi0_fast_droid", "paligemma_fast_specialist_droid"), DEFAULT_GATE);
     expect(h.fixedHorizonCapped).toBe(true);
+    expect(h.pctUsed).toBe(100);
   });
 
   it("G3 Bradley-Terry leaderboard", () => {
@@ -166,5 +169,16 @@ describe("gold features", () => {
     expect(h.i2).toBeLessThanOrEqual(1);
     expect(h.pValue).toBeGreaterThanOrEqual(0);
     expect(h.pValue).toBeLessThanOrEqual(1);
+  });
+
+  it("site labels are canonicalised before grouping", () => {
+    expect(canonicalSite("berkeley")).toBe("Berkeley");
+    expect(canonicalSite(" BERKELEY ")).toBe("Berkeley");
+    expect(canonicalSite("berkreley")).toBe("Berkeley");
+    expect(canonicalSite("Unversity of Washington")).toBe("University of Washington");
+    expect(canonicalSite("UT Austin")).toBe("UT Austin");
+    const names = new Set(sessions().map(s => s.site));
+    expect([...names].filter(n => /berk|betk/i.test(n))).toEqual(["Berkeley"]);
+    expect(names.size).toBe(17); // 33 raw labels - 14 Berkeley variants - 2 Washington typos
   });
 });

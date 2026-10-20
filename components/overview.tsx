@@ -12,7 +12,7 @@ const DEMOS = [
 ] as const;
 
 // Published counts of the bundled RoboArena snapshot (SPEC.md); live counts replace them when the API answers.
-const SNAPSHOT = { policies: 21, sites: 33, episodes: 10781, sessions: 3882, notes: 3878 };
+const SNAPSHOT = { policies: 21, sites: 17, episodes: 10781, sessions: 3882, notes: 3878 };
 
 type Mode = "superiority" | "noninferiority";
 
