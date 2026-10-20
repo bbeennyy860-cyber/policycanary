@@ -59,7 +59,7 @@ In the local end-to-end run, the Slice Miner (gpt-4.1-mini) proposed six slices.
 - **Next.js 15 App Router, strict TypeScript, Tailwind, Recharts, zod.** Hosted on Netlify with **Netlify Database** (managed Postgres). Migrations in `netlify/database/migrations` are applied on deploy.
 - **Data.** The RoboArena snapshot (3,882 sessions, 10,781 trials, 21 policies; MIT licence) is seeded by a generated SQL migration. Its free-text site labels (33 raw spellings, including 14 for Berkeley) are mapped to 17 sites through an explicit alias table. Fuzzy matching could silently merge two different labs.
 - **Statistics are pure functions** in `lib/stats/`, unit-tested against golden values. `bettingCs` is an exact port of the Python reference used to compute those values. Decisions never depend on the LLM.
-- **The LLM sees only the discovery half.** That's the guard against the model "finding" patterns in the same data used to confirm them. With no key, or if the call fails, the miner falls back to labelled cached proposals, so the demo never depends on API uptime.
+- **The LLM sees only the discovery half.** That's the guard against the model "finding" patterns in the same data used to confirm them. In production the miner calls gpt-4.1-mini through Netlify AI Gateway, using credentials the platform injects, and live runs are capped at 30 an hour. With no credentials, past the cap, or if the call fails, it falls back to labelled cached proposals, so the demo never depends on API uptime. The UI always shows which source was used.
 - **Database writes run in transactions** with row locks for state changes. Driver errors are never echoed to clients, because they can contain connection strings or evaluator notes. A missing database or schema returns 503, not 500.
 - **Audit integrity is checkable**, not asserted: the verify endpoint recomputes every hash.
 
@@ -71,7 +71,7 @@ npx netlify-cli@latest dev                          # Next.js + a local Netlify 
 npx netlify-cli@latest database migrations apply    # first run: create tables and seed RoboArena
 ```
 
-Set `OPENAI_API_KEY` to enable live slice mining; without it the cached proposals are used.
+Live slice mining works under `netlify dev` (it provides AI Gateway credentials) or with `OPENAI_API_KEY` set; otherwise the cached proposals are used.
 
 Checks:
 
@@ -105,7 +105,8 @@ This was the AlgoSoup take-home: build and deploy a product in 60 minutes using 
 - an independent code review pass;
 - a calibration script over all 29 eligible policy pairs (`docs/CALIBRATION.md`), so the statistical claims are checked beyond the three demo rollouts;
 - this README;
-- pushing to GitHub and the first Netlify deploy.
+- pushing to GitHub and the first Netlify deploy;
+- a fix found by smoke-testing that deploy: production slice runs were silently using the cached proposals, because a project-level `OPENAI_API_KEY` stops Netlify injecting its gateway credentials. The miner now uses the always-injected `NETLIFY_AI_GATEWAY_*` pair, and the fallback logs the HTTP status and endpoint path.
 
 The raw worker logs in `logs/` are unedited.
 
