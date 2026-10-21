@@ -39,7 +39,7 @@ export function integer(value: unknown): string {
 export function pct(value: unknown, digits = 1): string {
   const n = maybeNum(value);
   if (n === null) return "—";
-  return `${(n <= 1 ? n * 100 : n).toFixed(digits)}%`;
+  return `${(n * 100).toFixed(digits)}%`; // fractions only: guessing the scale turned 0.8% into 80%
 }
 export function pval(value: unknown): string {
   const n = maybeNum(value);

@@ -16,13 +16,17 @@ describe("state machine", () => {
     expect(transition("EXPANDING", "PROMOTE")).toBe("PROMOTED");
     expect(transition("EVALUATING", "ROLLBACK")).toBe("ROLLED_BACK");
     expect(transition("EVALUATING", "HOLD")).toBe("HOLD");
-    expect(transition("HOLD", "RESUME")).toBe("EVALUATING");
+    expect(transition("HOLD", { type: "RESUME", stage: "EVAL" })).toBe("EVALUATING");
+    // HOLD keeps its stage: a canary that ran out of budget resumes as a canary, not back in EVAL.
+    expect(transition("HOLD", { type: "RESUME", stage: "CANARY_10" })).toBe("CANARY");
+    expect(transition("HOLD", { type: "RESUME", stage: "EXPAND_50" })).toBe("EXPANDING");
     expect(transition("HOLD", "ABANDON")).toBe("ABANDONED");
     expect(transition("CANARY", "GUARDRAIL")).toBe("ROLLED_BACK");
   });
   it("illegal transitions throw (-> 409)", () => {
     expect(() => transition("PROMOTED", "START")).toThrow(IllegalTransition);
     expect(() => transition("DRAFT", "ABANDON")).toThrow(IllegalTransition);
+    expect(() => transition("CANARY", { type: "RESUME", stage: "CANARY_10" })).toThrow(IllegalTransition);
     expect(() => transition("ROLLED_BACK", { type: "OVERRIDE", toState: "EVALUATING", actor: "ben", reason: "long enough reason" })).toThrow(IllegalTransition);
     expect(errorResponse(new IllegalTransition("x")).status).toBe(409);
   });
@@ -75,6 +79,15 @@ describe("replay", () => {
   });
   it("replaying a terminal rollout is illegal", () => {
     expect(() => evaluateBatch({ state: "PROMOTED", stage: "FULL", stageStart: 0, cursor: 0, pairs, config: DEFAULT_GATE }, 25)).toThrow(IllegalTransition);
+  });
+  it("live ingest: one appended pair is not 'stream exhausted', and a caught-up replay decides nothing", () => {
+    // The reviewer's repro: a CANARY rollout caught up at 650 receives one live pair.
+    const live = { state: "CANARY" as const, stage: "CANARY_10" as const, stageStart: 600, cursor: 650, pairs: pairs.slice(0, 651), config: DEFAULT_GATE };
+    expect(evaluateBatch(live, 1, "CONTINUE").decisions.at(-1)?.verdict).toBe("HOLD"); // historical semantics
+    const r = evaluateBatch(live, 1, "CONTINUE", false);
+    expect([r.state, r.cursor, r.decisions.at(-1)?.verdict]).toEqual(["CANARY", 651, "CONTINUE"]);
+    const idle = evaluateBatch({ ...live, cursor: 651 }, 25, "CONTINUE");
+    expect([idle.state, idle.decisions.length, idle.transitions.length]).toEqual(["CANARY", 0, 0]);
   });
 });
 

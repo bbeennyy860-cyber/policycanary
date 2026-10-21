@@ -1,7 +1,7 @@
 import { mulberry32 } from "./random";
 
 export interface BtSession { arms: { name: string; progress: number }[] }
-export interface BtEntry { rank: number; name: string; logStrength: number; ci: [number, number]; comparisons: number; insufficientData: boolean }
+export interface BtEntry { rank: number | null; name: string; logStrength: number; ci: [number, number] | null; comparisons: number; insufficientData: boolean }
 export interface BtResult { entries: BtEntry[]; sessionsUsed: number; bootstrapResamples: number; seed: number }
 
 interface Contribution { i: number; j: number; wi: number } // one comparison; wi in {0, 0.5, 1}
@@ -34,12 +34,12 @@ export function fitBt(k: number, wins: Float64Array, counts: Float64Array, tol =
 
 export function bradleyTerry(sessions: BtSession[], opts: { resamples?: number; seed?: number; minComparisons?: number } = {}): BtResult {
   const { resamples = 200, seed = 7, minComparisons = 30 } = opts;
+  sessions = sessions.filter(s => s.arms.length >= 2); // single-arm sessions compare nothing
   const names = [...new Set(sessions.flatMap(s => s.arms.map(a => a.name)))].sort();
   const index = new Map(names.map((n, i) => [n, i]));
   const k = names.length;
   const perSession: Contribution[][] = [];
   for (const s of sessions) {
-    if (s.arms.length < 2) continue;
     const list: Contribution[] = [];
     for (let a = 0; a < s.arms.length; a++) for (let b = a + 1; b < s.arms.length; b++) {
       const x = s.arms[a], y = s.arms[b];
@@ -72,13 +72,16 @@ export function bradleyTerry(sessions: BtSession[], opts: { resamples?: number; 
     const pos = (sorted.length - 1) * q, lo = Math.floor(pos), hi = Math.ceil(pos);
     return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
   };
+  // Insufficient-data policies are listed after the ranked ones, unranked: their strength is mostly prior.
+  let rank = 0;
   const entries = names.map((name, i) => {
     let comparisons = 0;
     for (let j = 0; j < k; j++) comparisons += full.counts[i * k + j];
-    return { rank: 0, name, logStrength: r4(Math.log(strengths[i])),
-      ci: [r4(quantile(samples[i], 0.025)), r4(quantile(samples[i], 0.975))] as [number, number],
+    return { rank: null as number | null, name, logStrength: r4(Math.log(strengths[i])),
+      ci: samples[i].length ? [r4(quantile(samples[i], 0.025)), r4(quantile(samples[i], 0.975))] as [number, number] : null,
       comparisons, insufficientData: comparisons < minComparisons };
-  }).sort((a, b) => b.logStrength - a.logStrength).map((e, i) => ({ ...e, rank: i + 1 }));
+  }).sort((a, b) => Number(a.insufficientData) - Number(b.insufficientData) || b.logStrength - a.logStrength)
+    .map(e => ({ ...e, rank: e.insufficientData ? null : ++rank }));
   return { entries, sessionsUsed: perSession.length, bootstrapResamples: resamples, seed };
 }
 

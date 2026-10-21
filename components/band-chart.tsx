@@ -4,7 +4,7 @@ import { Empty } from "./ui";
 
 export interface BandPoint { n: number; mean: number; lcb: number; ucb: number }
 
-export function BandChart({ points, margin, decisionN, verdict }: { points: BandPoint[]; margin: number; decisionN?: number | null; verdict?: string | null }) {
+export function BandChart({ points, margin, level, decisionN, verdict }: { points: BandPoint[]; margin: number; level: number; decisionN?: number | null; verdict?: string | null }) {
   if (!points.length) return <Empty>Press Replay to stream paired sessions. The band tightens as evidence accumulates.</Empty>;
   const data = points.map(p => ({ n: p.n, mean: p.mean, lcb: p.lcb, ucb: p.ucb, band: [p.lcb, p.ucb] as [number, number] }));
   const lo = Math.min(...points.map(p => p.lcb), -margin);
@@ -42,7 +42,7 @@ export function BandChart({ points, margin, decisionN, verdict }: { points: Band
       </ResponsiveContainer>
       <div className="mt-1 flex flex-wrap items-center gap-x-5 gap-y-1 px-1 text-[11.5px] text-muted">
         <span className="flex items-center gap-1.5"><span className="h-0.5 w-4 bg-ink" />Mean Δ</span>
-        <span className="flex items-center gap-1.5"><span className="h-2.5 w-4 rounded-sm bg-accent/25 ring-1 ring-accent/50" />95% confidence sequence [L, U]</span>
+        <span className="flex items-center gap-1.5"><span className="h-2.5 w-4 rounded-sm bg-accent/25 ring-1 ring-accent/50" />{level}% confidence sequence [L, U]</span>
         <span className="flex items-center gap-1.5"><span className="w-4 border-t border-dashed border-dim" />±{margin} margin</span>
         {decisionN ? <span className="flex items-center gap-1.5"><span className="h-3 w-0.5" style={{ background: markerColor }} />Decision at n = {decisionN}</span> : null}
       </div>

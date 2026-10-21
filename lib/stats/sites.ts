@@ -1,11 +1,15 @@
 import type { PairObs } from "../contract";
-import { moments } from "./math";
+import { holm } from "./holm";
+import { moments, normalCdf } from "./math";
 import { wilson } from "./wilson";
 
 export interface SiteStat { site: string; n: number; meanDiff: number; se: number; winRate: number; winCi: [number, number] }
 export interface SiteHeterogeneity { sites: SiteStat[]; q: number; df: number; pValue: number; i2: number; concentratedAt: string[] }
 
-/** G4: per-site mean diff + Wilson CI on win rate (ties = half), Cochran's Q and I^2 across sites with n >= minN. */
+/**
+ * G4: per-site mean diff + Wilson CI on win rate (ties = half), Cochran's Q and I^2 across sites with n >= minN.
+ * A site is flagged as a regression only after Holm correction across sites, the same standard the slice miner uses.
+ */
 export function siteHeterogeneity(pairs: PairObs[], minN = 10): SiteHeterogeneity {
   const groups = new Map<string, number[]>();
   for (const p of pairs) {
@@ -14,12 +18,15 @@ export function siteHeterogeneity(pairs: PairObs[], minN = 10): SiteHeterogeneit
     groups.set(p.site, list);
   }
   const sites: SiteStat[] = [];
+  const pOneSided = new Map<string, number>();
   for (const [site, ds] of groups) {
     if (ds.length < minN) continue;
     const m = moments(ds);
+    const se = Math.sqrt(m.variance / ds.length);
+    pOneSided.set(site, se > 0 ? normalCdf(m.mean / se) : 1); // no spread, no estimable z: stay conservative
     const wins = ds.reduce((s, d) => s + (d > 0 ? 1 : d === 0 ? 0.5 : 0), 0);
     const ci = wilson(wins, ds.length);
-    sites.push({ site, n: ds.length, meanDiff: r(m.mean), se: r(Math.sqrt(m.variance / ds.length)), winRate: r(wins / ds.length), winCi: [r(ci[0]), r(ci[1])] });
+    sites.push({ site, n: ds.length, meanDiff: r(m.mean), se: r(se), winRate: r(wins / ds.length), winCi: [r(ci[0]), r(ci[1])] });
   }
   sites.sort((a, b) => a.meanDiff - b.meanDiff || a.site.localeCompare(b.site));
   const floor = 1e-4; // variance floor for sites with identical outcomes
@@ -30,7 +37,8 @@ export function siteHeterogeneity(pairs: PairObs[], minN = 10): SiteHeterogeneit
   const df = Math.max(0, sites.length - 1);
   const pValue = df > 0 ? 1 - chiSquareCdf(q, df) : 1;
   const i2 = q > 0 ? Math.max(0, (q - df) / q) : 0;
-  const concentratedAt = sites.filter(s => s.meanDiff + 1.96 * s.se < 0).map(s => s.site);
+  const tests = holm(sites.map(s => pOneSided.get(s.site)!));
+  const concentratedAt = sites.filter((s, i) => tests[i].rejected).map(s => s.site);
   return { sites, q: r(q), df, pValue: r(pValue, 6), i2: r(i2), concentratedAt };
 }
 

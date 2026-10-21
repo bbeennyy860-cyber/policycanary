@@ -3,7 +3,7 @@ import type {
   AuditEntry, DecisionRecord, GuardrailRecord, OverrideRecord, Rollout, RolloutDetail, SliceRun, TestedSliceResult, TrialIngestResponse,
 } from "../api-types";
 import type { GateConfig, PairObs, RolloutState, SliceProposal, Stage, Verdict } from "../contract";
-import { addSession, findSession, policyNames } from "../data";
+import { findSession, policyNames } from "../data";
 import { mineSlices } from "../slices/miner";
 import { bettingCs } from "../stats/cs";
 import { simulatePeeking } from "../stats/peeking";
@@ -72,6 +72,7 @@ export async function createRollout(input: CreateInput): Promise<Rollout> {
   const names = policyNames();
   if (!names.has(input.baseline) || !names.has(input.candidate)) throw new HttpError(404, "Unknown policy");
   const pairs = await loadPairs(input.baseline, input.candidate);
+  if (!pairs.length) throw new HttpError(422, "These policies share no paired sessions");
   return transaction(async db => {
     await db.query("SELECT pg_advisory_xact_lock(73291, 1)");
     const result = await db.query<{ id: number }>(`INSERT INTO rollouts (baseline, candidate, alpha, margin, max_trials, mode)
@@ -107,16 +108,20 @@ export async function rolloutDetail(id: number): Promise<RolloutDetail> {
   const csStage = justAdvanced ? last.stage : row.stage;
   const chartStart = justAdvanced ? Math.max(0, row.cursor - last.n_pairs) : row.stage_start;
   const cfg = configFor(row);
-  const ds = row.pairs.map(p => p.d);
+  // Only what has been replayed so far: computing over the whole stream would show the result before Replay.
+  const seen = row.pairs.slice(0, row.cursor);
+  const ds = seen.map(p => p.d);
   const runs = data.sliceRuns.map(publicSliceRun);
+  const decided = data.decisions.some(d => d.verdict !== "CONTINUE");
   return {
     ...publicRollout(row),
     decisions: data.decisions.map(publicDecision), overrides: data.overrides.map(publicOverride),
     guardrails: data.guardrails.map(publicGuardrail), audit: data.audit.map(publicAudit), auditVerification: verifyAudit(data.audit),
-    cs: bettingCs(ds.slice(chartStart, row.cursor), cfg.alpha), csStage, fullCs: bettingCs(ds, cfg.alpha),
+    cs: bettingCs(ds.slice(chartStart), cfg.alpha), csStage,
     sliceRuns: runs, latestSliceRun: runs[0] ?? null,
-    savings: savings(ds, row.pairs.map(p => p.durS ?? 0), cfg),
-    sites: siteHeterogeneity(row.pairs),
+    // Recomputes the gate's first decision from pair 0; shown only once the replay has reached it.
+    savings: decided ? savings(row.pairs.map(p => p.d), row.pairs.map(p => p.durS ?? 0), cfg) : null,
+    sites: siteHeterogeneity(seen),
   };
 }
 
@@ -163,6 +168,9 @@ export async function replayRollout(id: number, batch: number, expectedCursor?: 
     if (expectedCursor !== undefined && expectedCursor !== row.cursor) throw new HttpError(409, `Cursor mismatch: expected ${expectedCursor}, current ${row.cursor}`);
     const result = evaluateBatch({ state: row.state, stage: row.stage, stageStart: row.stage_start, cursor: row.cursor,
       pairs: row.pairs, config: configFor(row) }, batch, await lastVerdict(db, id));
+    if (result.cursor === row.cursor && !result.transitions.length) {
+      return { rollout: publicRollout(row), decisions: [], decision: null, stopped: true }; // caught up: nothing to record
+    }
     const decisions = await persistReplay(db, row, result);
     const decision = decisions.at(-1) ?? null;
     return { rollout: publicRollout({ ...row, state: result.state, stage: result.stage, stage_start: result.stageStart,
@@ -179,7 +187,7 @@ export async function overrideRollout(id: number, input: OverrideInput) {
       throw new HttpError(400, "Resuming HOLD requires a larger maxTrials");
     }
     if (!isResume && input.maxTrials !== undefined) throw new HttpError(400, "maxTrials may only change when resuming HOLD");
-    const state = transition(row.state, isResume ? "RESUME" : { type: "OVERRIDE", ...input });
+    const state = transition(row.state, isResume ? { type: "RESUME", stage: row.stage } : { type: "OVERRIDE", ...input });
     const stage = stageForState(state) ?? row.stage;
     const stageStart = isResume ? row.stage_start : stage !== row.stage ? row.cursor : row.stage_start;
     await saveState(db, row, { state, stage, stageStart, cursor: row.cursor, maxTrials: input.maxTrials });
@@ -194,8 +202,8 @@ export async function overrideRollout(id: number, input: OverrideInput) {
   });
 }
 
-// The public demo holds a paid API key; past this many LLM slice runs per hour (all rollouts) the
-// miner serves the labelled cached proposals instead. Statistics are unaffected either way.
+// Live LLM calls cost money; past this many runs per hour (all rollouts) the miner serves the labelled
+// cached proposals instead. A soft cap: concurrent runs can overshoot by a few, which is acceptable.
 const LLM_RUNS_PER_HOUR = 30;
 
 export async function runSlices(id: number): Promise<SliceRun> {
@@ -222,10 +230,13 @@ export async function runSlices(id: number): Promise<SliceRun> {
 export async function approveGuardrail(id: number, sliceName: string, approvedBy: string) {
   return transaction(async db => {
     const row = await readRollout(db, id, true);
+    if (isTerminal(row.state)) throw new HttpError(409, `Rollout is already ${row.state}`);
     const latest = await db.query<SliceRunRow>("SELECT * FROM slice_runs WHERE rollout_id = $1 ORDER BY id DESC LIMIT 1", [id]);
     const run = latest.rows[0];
     const slice = run?.results.find(r => r.name === sliceName && r.confirmed);
     if (!slice) throw new HttpError(409, "Slice is not confirmed in the latest slice run");
+    const existing = await db.query("SELECT 1 FROM guardrails WHERE rollout_id = $1 AND slice_name = $2", [id, slice.name]);
+    if (existing.rows.length) throw new HttpError(409, "Guardrail already approved");
     const inserted = await db.query<GuardrailRow>("INSERT INTO guardrails (rollout_id, slice_name, pattern, approved_by) VALUES ($1, $2, $3, $4) RETURNING *",
       [id, slice.name, slice.pattern, approvedBy]);
     await appendAudit(db, "rollout", id, "GUARDRAIL_APPROVED", { sliceName: slice.name, pattern: slice.pattern, approvedBy, runId: run.id });
@@ -235,7 +246,7 @@ export async function approveGuardrail(id: number, sliceName: string, approvedBy
     const regressing = retest.some(r => r.name === slice.name && r.confirmed);
     let state = row.state;
     const reason = regressing ? `guardrail: ${slice.name} confirmed regression` : `guardrail: ${slice.name} approved; no confirmed regression on current data`;
-    if (regressing && !isTerminal(row.state)) {
+    if (regressing) {
       state = transition(row.state, "GUARDRAIL");
       await saveState(db, row, { state, stage: row.stage, stageStart: row.stage_start, cursor: row.cursor });
       await appendAudit(db, "rollout", id, "TRANSITION", { fromState: row.state, toState: state, reason });
@@ -302,8 +313,9 @@ export async function ingestTrials(key: string, input: TrialInput): Promise<{ st
       let decision: DecisionRecord | null = null;
       const caughtUp = row.cursor === row.pairs.length && ["EVALUATING", "CANARY", "EXPANDING"].includes(row.state);
       if (caughtUp) {
+        // exhaustOnEnd=false: the new pair is the end of the stream only until the next trial arrives.
         const result = evaluateBatch({ state: row.state, stage: row.stage, stageStart: row.stage_start, cursor: row.cursor, pairs, config: configFor(row) },
-          1, await lastVerdict(db, row.id));
+          1, await lastVerdict(db, row.id), false);
         decision = (await persistReplay(db, row, result, pairs)).at(-1) ?? null;
       } else {
         await saveState(db, row, { state: row.state, cursor: row.cursor, stage: row.stage, stageStart: row.stage_start, pairs });
@@ -314,14 +326,8 @@ export async function ingestTrials(key: string, input: TrialInput): Promise<{ st
     const response: TrialIngestResponse = { sessionId: input.sessionId, inserted: input.results.length, appendedTo };
     await db.query("INSERT INTO idempotency_keys (key, request_hash, status, response) VALUES ($1, $2, $3, $4::jsonb)",
       [key, requestHash, 201, JSON.stringify(response)]);
-    // Keep the in-memory read model consistent for this instance.
-    const record = known ?? { id: input.sessionId, t: new Date(input.occurredAt).toISOString(), site: input.site, instr: input.instruction, notes: input.notes, policies: {} };
-    const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    for (const r of input.results) {
-      const slot = letters[Object.keys(record.policies).length] ?? `P${Object.keys(record.policies).length}`;
-      record.policies[slot] = { name: r.policy, success: r.success, progress: r.progress, duration: r.durationS ?? null };
-    }
-    if (!known) addSession(record);
+    // Ingest feeds active rollouts (persisted above). It deliberately does not patch the per-instance snapshot
+    // read model: on serverless that would make policies and pair lists depend on which instance served the request.
     return { status: 201, body: response, replayed: false };
   });
 }

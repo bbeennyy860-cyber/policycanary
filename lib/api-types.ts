@@ -64,7 +64,7 @@ export interface SiteStat { site: string; n: number; meanDiff: number; se: numbe
 export interface SiteHeterogeneity {
   sites: SiteStat[]; // sites with n >= 10
   q: number; df: number; pValue: number; i2: number;
-  concentratedAt: string[]; // sites whose mean diff is significantly < 0
+  concentratedAt: string[]; // sites whose mean diff is significantly < 0 after Holm correction across sites
 }
 
 /** GET /api/rollouts/:id */
@@ -72,9 +72,9 @@ export interface RolloutDetail extends Rollout {
   decisions: DecisionRecord[]; overrides: OverrideRecord[]; guardrails: GuardrailRecord[];
   audit: AuditEntry[]; auditVerification: AuditVerification;
   cs: CsPoint[]; csStage: Stage;            // CS series of the current (or just-completed) stage up to cursor
-  fullCs: CsPoint[];                        // CS series over every pair of the stream (for context)
   sliceRuns: SliceRun[]; latestSliceRun: SliceRun | null;
-  savings: SavingsResult; sites: SiteHeterogeneity;
+  savings: SavingsResult | null;            // null until the gate has reached a decision
+  sites: SiteHeterogeneity;                 // replayed pairs only
 }
 
 /** GET /api/rollouts */
@@ -114,6 +114,6 @@ export interface TrialIngestResponse {
 
 /** GET /api/leaderboard (G3) */
 export interface LeaderboardEntry {
-  rank: number; name: string; logStrength: number; ci: [number, number]; comparisons: number; insufficientData: boolean;
+  rank: number | null; name: string; logStrength: number; ci: [number, number] | null; comparisons: number; insufficientData: boolean;
 }
 export interface LeaderboardResponse { entries: LeaderboardEntry[]; sessionsUsed: number; bootstrapResamples: number; seed: number }

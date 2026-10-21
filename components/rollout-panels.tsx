@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, type FormEvent } from "react";
+import cache from "@/data/slice_cache.json";
 import { api, ApiError, fixed, integer, message, num, pick, pct, pval, record, rows, signed, str, time, type JsonRecord } from "./api";
 import { Card, Empty, ErrorNotice } from "./ui";
 
@@ -14,7 +15,7 @@ export function SavingsCard({ savings }: { savings: JsonRecord }) {
     <Card title="Time to decision" subtitle="Robot time the gate needed, against running every available pair">
       <div className="num text-[30px] font-semibold leading-none tracking-tight text-accent">{fixed(savings.robotHoursUsed, 1)} h</div>
       <div className="mt-1 text-[12px] text-muted">
-        {decided ? `${pct(savings.pctUsed, 0)} of the ${fixed(savings.robotHoursAll, 1)} h for all ${integer(savings.totalPairs)} pairs` : "No decision: the data ran out first"}
+        {decided ? `${pct(num(savings.pctUsed) / 100)} of the ${fixed(savings.robotHoursAll, 1)} h for all ${integer(savings.totalPairs)} pairs` : "No decision: the data ran out first"}
       </div>
       <dl className="num mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-[12.5px]">
         <dt className="text-dim">Decided at pair</dt><dd className="text-right">{integer(savings.decidedAt)} of {integer(savings.totalPairs)}</dd>
@@ -83,7 +84,7 @@ export function SitesPanel({ sites }: { sites: JsonRecord }) {
         <>
           {concentrated.size > 0 && (
             <div className="border-b border-line bg-bad/5 px-5 py-2.5 text-[12.5px] text-bad">
-              Regression concentrated at: <span className="font-mono">{[...concentrated].join(", ")}</span>
+              Regression concentrated at (Holm-corrected across sites): <span className="font-mono">{[...concentrated].join(", ")}</span>
             </div>
           )}
           <div className="max-h-[300px] overflow-auto">
@@ -143,6 +144,7 @@ export function SliceMinerPanel({ id, initialRun, terminal, onChanged }: { id: s
   const confirmed = results.filter(r => r.confirmed === true);
   const rejected = results.filter(r => r.confirmed !== true);
   const split = num(run.splitIndex);
+  const ai = str(run.source) === "llm";
 
   return (
     <Card title="AI Slice Miner"
@@ -157,7 +159,8 @@ export function SliceMinerPanel({ id, initialRun, terminal, onChanged }: { id: s
       ) : (
         <div className="space-y-5">
           <div className="num flex flex-wrap gap-x-6 gap-y-1 text-[12px] text-muted">
-            <span>Source: <span className="text-ink">{str(run.source) === "llm" ? `LLM (${str(run.model)})` : "cached fallback proposals"}</span></span>
+            <span>Source: <span className="text-ink">{ai ? `LLM (${str(run.model)})`
+              : `hand-labelled reference proposals from ${cache.provenance.baseline} → ${cache.provenance.candidate} (LLM not called)`}</span></span>
             <span>Discovery pairs 1–{integer(split)} · confirmation {integer(split + 1)}+</span>
             <span><span className="text-good">{confirmed.length} confirmed</span> · <span className="text-bad">{rejected.length} rejected</span> of {results.length} proposals</span>
             {run.createdAt !== undefined && <span>Run {time(run.createdAt)}</span>}
@@ -168,7 +171,7 @@ export function SliceMinerPanel({ id, initialRun, terminal, onChanged }: { id: s
               <div className="label text-good">Confirmed on held-out data</div>
               {confirmed.map(r => (
                 <div key={str(r.name)} className="rounded-lg border border-good/30 bg-good/5 p-4">
-                  <SliceHead r={r} />
+                  <SliceHead r={r} ai={ai} />
                   <SliceStats r={r} />
                   {!terminal && (
                     <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-good/20 pt-3">
@@ -187,11 +190,11 @@ export function SliceMinerPanel({ id, initialRun, terminal, onChanged }: { id: s
 
           {rejected.length > 0 && (
             <div className="space-y-3">
-              <div className="label text-bad">Rejected: the AI&apos;s idea did not survive</div>
+              <div className="label text-bad">Rejected: {ai ? "the AI's idea" : "the proposal"} did not survive</div>
               <div className="grid gap-3 md:grid-cols-2">
                 {rejected.map(r => (
                   <div key={str(r.name)} className="rounded-lg border border-line bg-surface-2/50 p-4">
-                    <SliceHead r={r} />
+                    <SliceHead r={r} ai={ai} />
                     <div className="mt-2 rounded border border-bad/25 bg-bad/5 px-2.5 py-1.5 text-[12px] text-bad">{rejectReason(r)}</div>
                     <SliceStats r={r} />
                   </div>
@@ -212,14 +215,14 @@ function rejectReason(r: JsonRecord): string {
   if (t > 0 && p > t) return `Failed Holm: p ${pval(p)} > threshold ${pval(t)}`;
   return `Effect on held-out data not below the −margin (mean ${signed(r.meanConf)})`;
 }
-function SliceHead({ r }: { r: JsonRecord }) {
+function SliceHead({ r, ai }: { r: JsonRecord; ai: boolean }) {
   return (
     <div>
       <div className="flex items-baseline justify-between gap-3">
         <div className="text-[13.5px] font-semibold text-ink">{str(r.name)}</div>
         <code className="truncate font-mono text-[11px] text-dim" title={str(r.pattern)}>/{str(r.pattern)}/i</code>
       </div>
-      <p className="mt-1 text-[12.5px] leading-relaxed text-muted"><span className="text-dim">AI rationale: </span>{str(r.rationale, "")}</p>
+      <p className="mt-1 text-[12.5px] leading-relaxed text-muted"><span className="text-dim">{ai ? "AI rationale" : "Rationale (hand-labelled)"}: </span>{str(r.rationale, "")}</p>
     </div>
   );
 }
@@ -266,7 +269,7 @@ export function OverridePanel({ id, state, maxTrials, onChanged }: { id: string;
     setBusy(false);
   }
   return (
-    <Card title="Manual override" subtitle="Every override needs an actor and a reason of at least 10 characters">
+    <Card title="Manual override" subtitle="Needs an actor and a reason of at least 10 characters. The actor is self-reported: this demo has no sign-in.">
       <form className="space-y-3" onSubmit={submit}>
         <div className="grid grid-cols-2 gap-3">
           <label className="field">From<input className="input font-mono text-muted" value={state} readOnly aria-readonly /></label>

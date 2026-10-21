@@ -29,13 +29,6 @@ export function sessions(): SessionRecord[] {
   return cache;
 }
 
-/** Ingested sessions are appended in memory (the DB remains the durable record). */
-export function addSession(record: SessionRecord): void {
-  const all = sessions();
-  all.push(record);
-  all.sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-}
-
 export function findSession(id: string): SessionRecord | undefined {
   return sessions().find(s => s.id === id);
 }

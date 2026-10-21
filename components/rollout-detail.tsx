@@ -61,6 +61,7 @@ export function RolloutDetail({ id }: { id: string }) {
   const pairCount = num(pick(detail ?? {}, "pairCount"));
   const exhausted = pairCount > 0 && cursor >= pairCount;
   const canReplay = !TERMINAL.has(state) && state !== "HOLD" && !exhausted;
+  const level = Number(((1 - num(detail?.alpha, 0.05)) * 100).toFixed(1)); // CS coverage follows the rollout's alpha
 
   async function replay(once = false) {
     setReplayError(""); setReplaying(true); stopRef.current = false;
@@ -140,8 +141,8 @@ export function RolloutDetail({ id }: { id: string }) {
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <Card title="Confidence sequence"
-          subtitle={<>Mean Δ progress (candidate − baseline) with its anytime-valid 95% band, stage <span className="font-mono">{csStage}</span>{csStage !== str(detail.stage, csStage) ? " (just completed)" : ""}. ROLLBACK when U &lt; −margin; PROMOTE when L &gt; {str(detail.mode) === "noninferiority" ? "−margin" : "0"}.</>}>
-          <BandChart points={points} margin={margin} decisionN={crossing ? num(crossing.n) : null} verdict={crossing ? str(crossing.verdict) : null} />
+          subtitle={<>Mean Δ progress (candidate − baseline) with its anytime-valid {level}% band, stage <span className="font-mono">{csStage}</span>{csStage !== str(detail.stage, csStage) ? " (just completed)" : ""}. ROLLBACK when U &lt; −margin; PROMOTE when L &gt; {str(detail.mode) === "noninferiority" ? "−margin" : "0"}.</>}>
+          <BandChart points={points} margin={margin} level={level} decisionN={crossing ? num(crossing.n) : null} verdict={crossing ? str(crossing.verdict) : null} />
         </Card>
         <div className="space-y-6">
           <Card title="Latest decision">
@@ -155,7 +156,7 @@ export function RolloutDetail({ id }: { id: string }) {
                 </dl>
                 <p className="text-[12.5px] leading-relaxed text-muted">{str(last.reason, "")}</p>
               </div>
-            ) : <p className="text-[13px] text-muted">No decisions yet. Replay streams historical sessions in time order; the gate evaluates after every batch of 25 pairs.</p>}
+            ) : <p className="text-[13px] text-muted">No decisions yet. Replay streams historical sessions in time order. The gate checks every pair; a row is stored at each batch end and on every verdict change.</p>}
           </Card>
           <SavingsCard savings={record(detail.savings)} />
         </div>
@@ -192,8 +193,9 @@ export function RolloutDetail({ id }: { id: string }) {
 
       <SliceMinerPanel id={id} initialRun={record(pick(detail, "latestSliceRun") ?? rows(detail.sliceRuns)[0])} terminal={TERMINAL.has(state)} onChanged={load} />
 
-      <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
-        <OverridePanel id={id} state={state} maxTrials={num(detail.maxTrials)} onChanged={load} />
+      <div className={`grid gap-6 ${TERMINAL.has(state) ? "" : "lg:grid-cols-[380px_1fr]"}`}>
+        {/* A terminal rollout accepts no transitions, so the form could only produce 409s. */}
+        {!TERMINAL.has(state) && <OverridePanel id={id} state={state} maxTrials={num(detail.maxTrials)} onChanged={load} />}
         <AuditPanel id={id} audit={rows(detail.audit)} fallback={record(detail.auditVerification)} refreshKey={rows(detail.audit).length} />
       </div>
     </div>

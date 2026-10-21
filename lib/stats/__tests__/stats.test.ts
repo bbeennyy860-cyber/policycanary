@@ -103,6 +103,11 @@ describe("testSlices on specialist rollout", () => {
     expect(r.confirmed).toBe(false);
     expect(r.rejectReason).toBe("invalid pattern");
   });
+  it("rejects catastrophic-backtracking shapes before running them", () => {
+    const r = testSlices(pairs, [{ name: "redos", pattern: "(a+)+$", rationale: "x" }, { name: "ok", pattern: "(the )?drawer", rationale: "x" }], split);
+    expect(r[0].rejectReason).toMatch(/unsafe pattern/);
+    expect(r[1].rejectReason ?? "").not.toMatch(/unsafe|invalid/);
+  });
   it("survives Holm with 8 proposals (threshold 0.05/8)", () => {
     const eight = [...proposals.slice(0, 3), ...["pour", "stack|on top", "marker|pen", "wipe|clean", "zzzz_none"].map(p => ({ name: p, pattern: p, rationale: "x" }))];
     const r = testSlices(pairs, eight, split).find(x => x.name === "deformable")!;
@@ -156,10 +161,20 @@ describe("gold features", () => {
     expect(r.entries.length).toBeGreaterThan(5);
     for (const e of r.entries) {
       expect(Number.isFinite(e.logStrength)).toBe(true);
-      expect(e.ci[0]).toBeLessThanOrEqual(e.ci[1] + 1e-9);
+      if (e.ci) expect(e.ci[0]).toBeLessThanOrEqual(e.ci[1] + 1e-9);
+      expect(e.rank === null).toBe(e.insufficientData);
     }
     expect(r.entries[0].rank).toBe(1);
+    // Ranked policies come first; insufficient-data ones are listed after them, unranked.
+    const firstUnranked = r.entries.findIndex(e => e.insufficientData);
+    if (firstUnranked >= 0) expect(r.entries.slice(firstUnranked).every(e => e.insufficientData)).toBe(true);
     expect(bradleyTerry(btSessions, { resamples: 20 })).toEqual(r);
+  });
+
+  it("G3 policies seen only in single-arm sessions are not on the leaderboard", () => {
+    const s = (a: number, b: number) => ({ arms: [{ name: "a", progress: a }, { name: "b", progress: b }] });
+    const r = bradleyTerry([s(1, 0), s(0, 1), s(1, 0), { arms: [{ name: "solo", progress: 1 }] }], { resamples: 10, minComparisons: 1 });
+    expect(r.entries.map(e => e.name).sort()).toEqual(["a", "b"]);
   });
 
   it("G4 site heterogeneity", () => {
@@ -172,6 +187,9 @@ describe("gold features", () => {
     expect(h.i2).toBeLessThanOrEqual(1);
     expect(h.pValue).toBeGreaterThanOrEqual(0);
     expect(h.pValue).toBeLessThanOrEqual(1);
+    // Holm across sites can only flag a subset of the sites whose own 95% interval is below zero.
+    const unadjusted = h.sites.filter(s => s.meanDiff + 1.96 * s.se < 0).map(s => s.site);
+    expect(h.concentratedAt.every(site => unadjusted.includes(site))).toBe(true);
   });
 
   it("site labels are canonicalised before grouping", () => {

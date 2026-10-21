@@ -15,11 +15,11 @@ Robotics teams compare a new policy against the current one by running paired tr
 - **AI Slice Miner, with statistics disposing.** An LLM reads evaluator notes from the *discovery* half only and proposes failure slices as regex patterns over task instructions. The engine tests each one on the held-out *confirmation* half with a one-sided test, a permutation p-value and Holm correction, and requires at least 15 confirmation pairs. A human then approves a confirmed slice as a guardrail. If the AI's idea fails the test, the UI says so.
 - **Peeking simulation.** Shows the naive-peeking false-promotion rate against the CS rate on this rollout's own data.
 - **Time to decision.** Robot-hours the gate needed against running every available pair. The oracle fixed-horizon size is shown for reference, labelled as needing the true effect in advance.
-- **Site heterogeneity.** Per-site effects, Cochran's Q and I².
-- **Fleet leaderboard.** Bradley-Terry ratings with session-bootstrap intervals.
+- **Site heterogeneity.** Per-site effects, Cochran's Q and I². A site is flagged as a regression only after Holm correction across sites.
+- **Fleet leaderboard.** Bradley-Terry ratings with session-bootstrap intervals. Policies with fewer than 30 comparisons are listed unranked.
 - **Hash-chained audit log.** Every create, replay, transition, override and slice run is appended with `prevHash → hash`. `GET /api/rollouts/:id/audit/verify` re-walks the chain.
-- **Overrides** need an actor and a reason of at least 10 characters. Resuming from HOLD needs a larger trial budget.
-- **Idempotent trial ingest:** `POST /api/trials` with `Idempotency-Key`. Same key and body returns the stored response; same key with a different body returns 409.
+- **Overrides** need an actor and a reason of at least 10 characters. Resuming from HOLD needs a larger trial budget and continues the stage the rollout stopped in. The actor is self-reported: the demo has no sign-in, so the audit chain proves the log wasn't edited, not who made each change.
+- **Idempotent trial ingest:** `POST /api/trials` with `Idempotency-Key`. Same key and body returns the stored response; same key with a different body returns 409. A new trial is appended to every active rollout for those two policies and evaluated straight away; new rollouts are built from the bundled snapshot.
 
 ### Real output
 
@@ -59,7 +59,7 @@ In the local end-to-end run, the Slice Miner (gpt-4.1-mini) proposed six slices.
 - **Next.js 15 App Router, strict TypeScript, Tailwind, Recharts, zod.** Hosted on Netlify with **Netlify Database** (managed Postgres). Migrations in `netlify/database/migrations` are applied on deploy.
 - **Data.** The RoboArena snapshot (3,882 sessions, 10,781 trials, 21 policies; MIT licence) is seeded by a generated SQL migration. Its free-text site labels (33 raw spellings, including 14 for Berkeley) are mapped to 17 sites through an explicit alias table. Fuzzy matching could silently merge two different labs.
 - **Statistics are pure functions** in `lib/stats/`, unit-tested against golden values. `bettingCs` is an exact port of the Python reference used to compute those values. Decisions never depend on the LLM.
-- **The LLM sees only the discovery half.** That's the guard against the model "finding" patterns in the same data used to confirm them. In production the miner calls gpt-4.1-mini through Netlify AI Gateway, using credentials the platform injects, and live runs are capped at 30 an hour. With no credentials, past the cap, or if the call fails, it falls back to labelled cached proposals, so the demo never depends on API uptime. The UI always shows which source was used.
+- **The LLM sees only the discovery half.** That's the guard against the model "finding" patterns in the same data used to confirm them. In production the miner calls gpt-4.1-mini through Netlify AI Gateway, using credentials the platform injects, and live runs are capped at 30 an hour. With no credentials, past the cap, or if the call fails, it falls back to hand-labelled reference proposals (written from one pair's discovery notes), so the demo never depends on API uptime. The UI says which source was used. Model-written regexes with repeated groups are rejected before they run.
 - **Database writes run in transactions** with row locks for state changes. Driver errors are never echoed to clients, because they can contain connection strings or evaluator notes. A missing database or schema returns 503, not 500.
 - **Audit integrity is checkable**, not asserted: the verify endpoint recomputes every hash.
 
@@ -107,6 +107,11 @@ This was the AlgoSoup take-home: build and deploy a product in 60 minutes using 
 - this README;
 - pushing to GitHub and the first Netlify deploy;
 - a fix found by smoke-testing that deploy: production slice runs were silently using the cached proposals, because a project-level `OPENAI_API_KEY` stops Netlify injecting its gateway credentials. The miner now uses the always-injected `NETLIFY_AI_GATEWAY_*` pair, and the fallback logs the HTTP status and endpoint path.
+- fixes from the independent review (13 findings, 1 high):
+  - high: live ingest and resume-from-HOLD went straight to HOLD, because reaching the end of the stream counted as "data exhausted". Historical replay keeps that rule; live ingest doesn't, and a caught-up replay now records nothing;
+  - a HOLD in CANARY resumed into EVAL; it now resumes in the stage it stopped in;
+  - the detail page showed the time-to-decision and per-site results before Replay was pressed;
+  - leaderboard ranks for policies with too little data, per-site flags without multiplicity correction, a percentage display bug, fallback proposals labelled as AI output, and smaller items (zero-pair rollouts, guardrails on finished rollouts, dead code).
 
 The raw worker logs in `logs/` are unedited.
 

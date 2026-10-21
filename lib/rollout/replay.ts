@@ -22,8 +22,12 @@ export interface ReplayResult {
   transitions: StateChange[];
 }
 
-/** Pure replay: inspect every prefix, persist batch ends, stop at the first crossing. */
-export function evaluateBatch(snapshot: ReplaySnapshot, batch: number, previousVerdict?: Verdict): ReplayResult {
+/**
+ * Pure replay: inspect every prefix, persist batch ends, stop at the first crossing.
+ * exhaustOnEnd: reaching the end of the stream means HOLD. True for the fixed historical replay;
+ * live ingest passes false, because there the end of the stream only means "no more trials yet".
+ */
+export function evaluateBatch(snapshot: ReplaySnapshot, batch: number, previousVerdict?: Verdict, exhaustOnEnd = true): ReplayResult {
   if (!["DRAFT", "EVALUATING", "CANARY", "EXPANDING"].includes(snapshot.state)) {
     throw new IllegalTransition(`Cannot replay ${snapshot.state}`);
   }
@@ -58,13 +62,10 @@ export function evaluateBatch(snapshot: ReplaySnapshot, batch: number, previousV
     }
     return false;
   };
-  if (end <= snapshot.cursor) {
-    consume(series.at(-1) ?? { n: 0, mean: 0, lcb: -1, ucb: 1 }, snapshot.cursor, true);
-  } else {
-    for (let cursor = snapshot.cursor + 1; cursor <= end; cursor++) {
-      const point = series[cursor - snapshot.stageStart - 1];
-      if (consume(point, cursor, cursor === snapshot.pairs.length)) break;
-    }
+  if (end <= snapshot.cursor) return result; // caught up: nothing new to read, so no new decision
+  for (let cursor = snapshot.cursor + 1; cursor <= end; cursor++) {
+    const point = series[cursor - snapshot.stageStart - 1];
+    if (consume(point, cursor, exhaustOnEnd && cursor === snapshot.pairs.length)) break;
   }
   return result;
 }

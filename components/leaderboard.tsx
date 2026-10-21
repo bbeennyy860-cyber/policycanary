@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { api, fixed, integer, message, num, pick, record, rows, str, type JsonRecord } from "./api";
 import { Card, Empty, ErrorNotice, Skeleton } from "./ui";
 
-interface Entry { name: string; logStrength: number; lo: number | null; hi: number | null; comparisons: number; insufficient: boolean }
+interface Entry { rank: number | null; name: string; logStrength: number; lo: number | null; hi: number | null; comparisons: number; insufficient: boolean }
 
 function normalise(r: JsonRecord): Entry {
   const ci = pick(r, "ci", "ci95", "interval");
@@ -15,6 +15,7 @@ function normalise(r: JsonRecord): Entry {
   const hi = ciArr ? num(ciArr[1]) : pick(r, "hi", "ciHigh", "upper", "ciHi") !== undefined ? num(pick(r, "hi", "ciHigh", "upper", "ciHi")) : ciRec.hi !== undefined ? num(ciRec.hi) : null;
   const flag = pick(r, "insufficient", "insufficientData", "lowData");
   return {
+    rank: typeof r.rank === "number" ? r.rank : null,
     name: str(pick(r, "name", "policy")),
     logStrength: num(pick(r, "logStrength", "log_strength", "theta", "strength")),
     lo, hi, comparisons,
@@ -34,7 +35,7 @@ export function Leaderboard() {
     try {
       const payload = await api("/api/leaderboard");
       const list = rows(Array.isArray(payload) ? payload : pick(record(payload), "policies", "leaderboard", "rows", "entries"));
-      setEntries(list.map(normalise).sort((a, b) => b.logStrength - a.logStrength));
+      setEntries(list.map(normalise)); // server order: ranked policies first, insufficient-data ones after
     } catch (e) { setError(message(e)); }
     setLoading(false);
   }, []);
@@ -89,12 +90,12 @@ export function Leaderboard() {
               <table className="tbl">
                 <thead><tr><th className="w-12">Rank</th><th>Policy</th><th className="r">Log-strength</th><th className="w-[38%]">95% CI</th><th className="r">Comparisons</th><th>Data</th></tr></thead>
                 <tbody>
-                  {entries.map((e, i) => {
+                  {entries.map(e => {
                     const on = selected.includes(e.name);
                     return (
                       <tr key={e.name} onClick={() => toggle(e.name)} aria-selected={on}
                         className={`cursor-pointer ${on ? "[&>td]:bg-accent/10" : ""} ${e.insufficient ? "opacity-60" : ""}`}>
-                        <td className="text-muted">{i + 1}</td>
+                        <td className="text-muted">{e.rank ?? "—"}</td>
                         <td className="font-mono text-[12.5px]">
                           <span className={`mr-2 inline-block h-3 w-3 rounded-[3px] border align-[-1px] ${on ? "border-accent bg-accent" : "border-line-strong"}`} />
                           {e.name}
@@ -119,7 +120,7 @@ export function Leaderboard() {
             </div>
           )}
       </Card>
-      <p className="text-[12px] text-dim">Policies with fewer than 30 comparisons are flagged; their strengths are shown but should not drive release decisions.</p>
+      <p className="text-[12px] text-dim">Policies with fewer than 30 comparisons are listed unranked below the rest; their strengths should not drive release decisions.</p>
     </div>
   );
 }

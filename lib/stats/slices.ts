@@ -5,6 +5,11 @@ import { permutationPValue } from "./permutation";
 
 export interface TestedSliceResult extends SliceResult { permutationPValue: number }
 
+// Patterns come from an LLM that reads untrusted notes. A repeated group (`(a+)+`, `(a|ab)*`) is the classic
+// catastrophic-backtracking shape, and keyword slices never need one. Truncation bounds the remaining cost.
+const REPEATED_GROUP = /\)[*+{]/;
+const MAX_INSTR = 500;
+
 export function testSlices(
   pairs: PairObs[],
   proposals: SliceProposal[],
@@ -18,11 +23,12 @@ export function testSlices(
     const result: TestedSliceResult = { ...proposal, nDisc: 0, meanDisc: 0, nConf: 0, meanConf: 0,
       z: 0, pOneSided: 1, permutationPValue: 1, holmThreshold: 0, confirmed: false };
     let pattern: RegExp;
+    if (REPEATED_GROUP.test(proposal.pattern)) return { ...result, rejectReason: "unsafe pattern (repeated group)" };
     try { pattern = new RegExp(proposal.pattern, "i"); }
     catch { return { ...result, rejectReason: "invalid pattern" }; }
     const discovery: number[] = [], confirmation: number[] = [];
     pairs.forEach((pair, index) => {
-      if (pattern.test(pair.instr)) (index < splitIndex ? discovery : confirmation).push(pair.d);
+      if (pattern.test(pair.instr.slice(0, MAX_INSTR))) (index < splitIndex ? discovery : confirmation).push(pair.d);
     });
     const disc = moments(discovery), conf = moments(confirmation);
     result.nDisc = disc.n; result.meanDisc = disc.mean;

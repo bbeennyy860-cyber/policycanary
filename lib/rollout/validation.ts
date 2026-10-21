@@ -17,9 +17,7 @@ export const overrideSchema = z.object({
   toState: stateSchema, actor: name, reason: z.string().trim().min(10).max(10000),
   maxTrials: z.number().int().positive().max(2147483647).optional(),
 }).strict();
-export const resumeSchema = z.object({
-  maxTrials: z.number().int().positive().max(2147483647), actor: name, reason: z.string().trim().min(10).max(10000),
-}).strict();
+
 export const guardrailSchema = z.object({ sliceName: name, approvedBy: name }).strict();
 export const trialSchema = z.object({
   sessionId: z.uuid(), occurredAt: z.iso.datetime({ offset: true }), site: name.transform(canonicalSite),
